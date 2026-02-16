@@ -31,13 +31,11 @@
   </style>
 </head>
 <body>
-  <header>
-    <h1>Application Débit SECM</h1>
-  </header>
+  <header><h1>Application Débit SECM</h1></header>
 
   <div class="wrap">
     <h2>Sélection du modèle</h2>
-    <div class="hint">Clique sur un modèle pour saisir les dimensions et calculer la fiche de débit.</div>
+    <div class="hint">Clique sur un modèle → saisis les dimensions → calcul M10 complet.</div>
 
     <div id="grid" class="grid"></div>
 
@@ -46,41 +44,37 @@
         <img id="selImg" src="" alt="">
         <div>
           <div style="font-weight:800;font-size:16px;">Modèle : <span id="selRef"></span></div>
-          <div class="hint">Saisie + calculs (règles générales)</div>
+          <div class="hint">Calculs : M10 (depuis ton Excel) + règles patins <700</div>
         </div>
       </div>
 
       <div class="pill">Dimensions intérieures (mm)</div>
       <div class="row" style="margin-top:10px;">
         <div><input id="L" type="number" inputmode="numeric" placeholder="Longueur L (mm)"></div>
-        <div><input id="l" type="number" inputmode="numeric" placeholder="Largeur l (mm)"></div>
-        <div><input id="h" type="number" inputmode="numeric" placeholder="Hauteur h (mm)"></div>
+        <div><input id="W" type="number" inputmode="numeric" placeholder="Largeur W (mm)"></div>
+        <div><input id="H" type="number" inputmode="numeric" placeholder="Hauteur H (mm)"></div>
       </div>
 
       <div class="pill" style="margin-top:14px;">Épaisseurs plaques (mm)</div>
       <div class="row" style="margin-top:10px;">
-        <div><input id="eFond" type="number" inputmode="numeric" placeholder="Fond (ex: 18)"></div>
-        <div><input id="eFac" type="number" inputmode="numeric" placeholder="Façades (ex: 15)"></div>
-        <div><input id="eCote" type="number" inputmode="numeric" placeholder="Côtés (ex: 15)"></div>
+        <div><input id="eP" type="number" inputmode="numeric" value="15" placeholder="Panneaux (15)"></div>
+        <div><input id="eFond" type="number" inputmode="numeric" value="15" placeholder="Fond (15)"></div>
+        <div><input id="eCouv" type="number" inputmode="numeric" value="15" placeholder="Couvercle (15)"></div>
       </div>
 
-      <div class="pill" style="margin-top:14px;">Barrage (traverses)</div>
+      <div class="pill" style="margin-top:14px;">Traverses (mm) — M10 = 100 x 18</div>
       <div class="row2" style="margin-top:10px;">
-        <div><input id="bLargeur" type="number" value="80" inputmode="numeric" placeholder="Largeur (80)"></div>
-        <div><input id="bEp" type="number" value="18" inputmode="numeric" placeholder="Épaisseur (18)"></div>
+        <div><input id="tLargeur" type="number" inputmode="numeric" value="100" placeholder="Largeur traverse (100)"></div>
+        <div><input id="tEp" type="number" inputmode="numeric" value="18" placeholder="Épaisseur traverse (18)"></div>
       </div>
 
-      <div class="pill" style="margin-top:14px;">Patins</div>
+      <div class="pill" style="margin-top:14px;">Patins (section au choix)</div>
       <div class="row2" style="margin-top:10px;">
-        <div><input id="pA" type="number" value="95" inputmode="numeric" placeholder="Section A (ex: 95)"></div>
-        <div><input id="pB" type="number" value="95" inputmode="numeric" placeholder="Section B (ex: 95)"></div>
-      </div>
-      <div class="row2" style="margin-top:10px;">
-        <div><input id="margePatin" type="number" value="30" inputmode="numeric" placeholder="Marge longueur patin (mm)"></div>
-        <div class="hint" style="align-self:center;">Longueur patin = L + marge</div>
+        <div><input id="pA" type="number" inputmode="numeric" value="95" placeholder="Section A (95)"></div>
+        <div><input id="pB" type="number" inputmode="numeric" value="95" placeholder="Section B (95)"></div>
       </div>
 
-      <button onclick="calculer()">Calculer la fiche</button>
+      <button onclick="calculer()">Calculer M10</button>
 
       <div id="err" class="err"></div>
       <div id="out"></div>
@@ -88,7 +82,6 @@
   </div>
 
   <script>
-    // Images À LA RACINE du repo
     const MODELES = [
       {ref:"M10",   img:"M10.jpg"},
       {ref:"M20",   img:"M20.jpg"},
@@ -109,6 +102,8 @@
 
     function clearMsg(){ errBox.textContent=""; outBox.innerHTML=""; }
     function showError(msg){ errBox.textContent = msg; }
+    function n(id){ return Number(document.getElementById(id).value || 0); }
+    function dim(a,b,c){ return `${Math.round(a)} x ${Math.round(b)} x ${Math.round(c)} mm`; }
 
     MODELES.forEach(m => {
       const card = document.createElement("div");
@@ -124,70 +119,84 @@
       grid.appendChild(card);
     });
 
-    function n(id){ return Number(document.getElementById(id).value || 0); }
-    function fmtDim(a,b,c){ return `${a} x ${b} x ${c} mm`; }
+    function table(title, rows){
+      return `
+        <h3 style="margin:14px 0 6px;">${title}</h3>
+        <table>
+          <thead><tr><th>Pièce</th><th>Qté</th><th>Dimensions (L x l x e)</th></tr></thead>
+          <tbody>
+            ${rows.map(r=>`<tr><td>${r.nom}</td><td>${r.qte}</td><td>${r.dim}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      `;
+    }
 
     function calculer(){
       clearMsg();
 
-      const L = n("L"), l = n("l"), h = n("h");
-      if(!L || !l || !h){ showError("Merci de remplir Longueur, Largeur et Hauteur."); return; }
+      const ref = selRef.textContent || "—";
+      const L = n("L"), W = n("W"), H = n("H");
+      if(!L || !W || !H){ showError("Merci de remplir Longueur (L), Largeur (W), Hauteur (H)."); return; }
 
-      // Épaisseurs (avec règle fond si L<1000)
-      const eFac = n("eFac") || 15;
-      const eCote = n("eCote") || 15;
-      let eFond = n("eFond") || 18;
-      if (L < 1000) eFond = 15; // règle donnée
+      const eP = n("eP") || 15;        // panneaux faces/cotes
+      const eFond = n("eFond") || 15;  // fond
+      const eCouv = n("eCouv") || 15;  // couvercle
+      const tLargeur = n("tLargeur") || 100;
+      const tEp = n("tEp") || 18;
 
-      // Barrage (toujours 80x18, mais on laisse editable)
-      const bLargeur = n("bLargeur") || 80;
-      const bEp = n("bEp") || 18;
-
-      // Patins
       const pA = n("pA") || 95;
       const pB = n("pB") || 95;
-      const marge = n("margePatin") || 30;
-      const longPatin = L + marge;
 
-      // règle patins si L < 700
-      let patins = [];
+      // --- M10 (formules Excel) ---
+      // Faces (x2)
+      const faces_L = L + (eP*2) + (tEp*2);
+      const faces_H = H + eFond;
+      const faces = {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)};
+
+      // Côtes (x2)
+      const cotes = {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)};
+
+      // Fond (x1) — dans ton Excel l'ajout latéral est à 0 → fond = L x W
+      const fond = {nom:"FOND", qte:1, dim: dim(L, W, eFond)};
+
+      // Couvercle (x1)
+      const couv_L = L + (eP*2) - 3;
+      const couv_W = W + (eP*2);
+      const couv = {nom:"COUVERCLE", qte:1, dim: dim(couv_L, couv_W, eCouv)};
+
+      // Patins — Excel : longueur = W + 2*eP ; qté = 3 si L>=1200 sinon 2
+      const patin_L = W + (eP*2);
+
+      let patinsRows = [];
       if (L < 700){
-        patins.push({nom:"Patin extérieur", qte:2, dim: fmtDim(longPatin, 95, 45)});
-        patins.push({nom:"Patin central",  qte:1, dim: fmtDim(longPatin, 95, 95)});
+        // ta règle validée
+        patinsRows.push({nom:"PATIN extérieur", qte:2, dim: dim(patin_L, 95, 45)});
+        patinsRows.push({nom:"PATIN central", qte:1, dim: dim(patin_L, 95, 95)});
       } else {
-        patins.push({nom:"Patin", qte:2, dim: fmtDim(longPatin, pA, pB)});
+        const qtePatins = (L >= 1200) ? 3 : 2;
+        patinsRows.push({nom:"PATINS", qte:qtePatins, dim: dim(patin_L, pA, pB)});
       }
 
-      // Exemple barrage (structure) : on met 2 barrages longueur = L (à affiner par modèle ensuite)
-      const barrages = [
-        {nom:"Barrage", qte:2, dim: fmtDim(L, bLargeur, bEp)}
-      ];
+      // Traverses (section = tLargeur x tEp)
+      const travFaces = {nom:"TRAVERSES FACES", qte:2, dim: dim(faces_L, tLargeur, tEp)};
+      const travCotes = {nom:"TRAVERSES CÔTÉS", qte:4, dim: dim(H + eP + eFond, tLargeur, tEp)};
+      const travCouv  = {nom:"TRAVERSES COUVERCLE", qte:2, dim: dim(patin_L, tLargeur, tEp)};
 
-      // Sortie
-      const ref = selRef.textContent || "—";
       const resume = `
         <div class="hint" style="margin-top:10px;">
-          <b>Modèle</b> : ${ref} — <b>Dimensions int.</b> : ${L} x ${l} x ${h} mm<br>
-          <b>Épaisseurs</b> : Fond ${eFond} / Façades ${eFac} / Côtés ${eCote} (mm)
+          <b>Modèle</b> : ${ref} — <b>Dimensions int.</b> : ${L} x ${W} x ${H} mm<br>
+          <b>Ép.</b> : panneaux ${eP} | fond ${eFond} | couvercle ${eCouv} (mm) — <b>traverses</b> ${tLargeur} x ${tEp}
         </div>
       `;
 
-      function table(title, rows){
-        return `
-          <h3 style="margin:14px 0 6px;">${title}</h3>
-          <table>
-            <thead><tr><th>Pièce</th><th>Qté</th><th>Dimensions (L x l x e)</th></tr></thead>
-            <tbody>
-              ${rows.map(r=>`<tr><td>${r.nom}</td><td>${r.qte}</td><td>${r.dim}</td></tr>`).join("")}
-            </tbody>
-          </table>
-        `;
-      }
+      const panneaux = [faces, cotes, fond, couv];
+      const traverses = [travFaces, travCotes, travCouv];
 
-      outBox.innerHTML = resume + table("Patins", patins) + table("Barrages", barrages) +
-        `<div class="hint" style="margin-top:10px;">
-          ✅ Étape suivante : on ajoute les panneaux (façades, côtés, fond, couvercle) avec les formules EXACTES de chaque modèle (à partir de tes Excel).
-        </div>`;
+      outBox.innerHTML =
+        resume +
+        table("Panneaux", panneaux) +
+        table("Patins", patinsRows) +
+        table("Traverses", traverses);
     }
   </script>
 </body>
