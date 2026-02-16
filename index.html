@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SECM - Application Débit</title>
+</head>
+<body style="font-family: Arial; text-align:center; padding:40px;">
+
+<h1>Application Débit SECM</h1>
+
+<p>Dimensions intérieures (mm)</p>
+
+<input type="number" id="longueur" placeholder="Longueur"><br><br>
+<input type="number" id="largeur" placeholder="Largeur"><br><br>
+<input type="number" id="hauteur" placeholder="Hauteur"><br><br>
+
+<button onclick="calcul()">Générer</button>
+
+<h2 id="resultat"></h2>
+
+<script>
+function calcul() {
+  var L = document.getElementById("longueur").value;
+  var l = document.getElementById("largeur").value;
+  var h = document.getElementById("hauteur").value;
+
+  document.getElementById("resultat").innerHTML =
+  "Dimensions saisies : " + L + " x " + l + " x " + h + " mm";
+}
+</script>
+
+</body>
+</html>
