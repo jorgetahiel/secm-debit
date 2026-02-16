@@ -16,12 +16,17 @@
     .card .ref{margin-top:8px;text-align:center;font-weight:700}
     .panel{margin-top:14px;background:#151a21;border:1px solid #222a35;border-radius:14px;padding:14px;display:none}
     .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     input{width:100%;padding:10px;border-radius:10px;border:1px solid #2b3442;background:#0f1216;color:#fff}
     button{padding:12px 14px;border-radius:12px;border:none;background:#ffd400;color:#111;font-weight:800;cursor:pointer;margin-top:12px}
     .selected{display:flex;align-items:center;gap:12px;margin-bottom:12px}
     .selected img{width:90px;height:70px;object-fit:contain;background:#0f1216;border-radius:10px}
     .hint{color:#cfd6e4;font-size:13px}
     .err{margin-top:10px;color:#ffb3b3;font-size:13px;white-space:pre-line}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border-bottom:1px solid #222a35;padding:10px;text-align:left;font-size:14px}
+    th{color:#cfd6e4;font-size:13px;font-weight:700}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#0f1216;border:1px solid #222a35;font-size:12px;color:#cfd6e4}
     @media (min-width: 720px){ .grid{grid-template-columns:repeat(4,minmax(0,1fr));} }
   </style>
 </head>
@@ -32,7 +37,7 @@
 
   <div class="wrap">
     <h2>Sélection du modèle</h2>
-    <div class="hint">Clique sur un modèle pour saisir les dimensions.</div>
+    <div class="hint">Clique sur un modèle pour saisir les dimensions et calculer la fiche de débit.</div>
 
     <div id="grid" class="grid"></div>
 
@@ -41,24 +46,49 @@
         <img id="selImg" src="" alt="">
         <div>
           <div style="font-weight:800;font-size:16px;">Modèle : <span id="selRef"></span></div>
-          <div class="hint">Renseigne les dimensions intérieures (mm)</div>
+          <div class="hint">Saisie + calculs (règles générales)</div>
         </div>
       </div>
 
-      <div class="row">
-        <div><input id="L" type="number" inputmode="numeric" placeholder="Longueur (mm)"></div>
-        <div><input id="l" type="number" inputmode="numeric" placeholder="Largeur (mm)"></div>
-        <div><input id="h" type="number" inputmode="numeric" placeholder="Hauteur (mm)"></div>
+      <div class="pill">Dimensions intérieures (mm)</div>
+      <div class="row" style="margin-top:10px;">
+        <div><input id="L" type="number" inputmode="numeric" placeholder="Longueur L (mm)"></div>
+        <div><input id="l" type="number" inputmode="numeric" placeholder="Largeur l (mm)"></div>
+        <div><input id="h" type="number" inputmode="numeric" placeholder="Hauteur h (mm)"></div>
       </div>
 
-      <button onclick="valider()">Valider</button>
-      <div id="res" class="hint" style="margin-top:10px;"></div>
+      <div class="pill" style="margin-top:14px;">Épaisseurs plaques (mm)</div>
+      <div class="row" style="margin-top:10px;">
+        <div><input id="eFond" type="number" inputmode="numeric" placeholder="Fond (ex: 18)"></div>
+        <div><input id="eFac" type="number" inputmode="numeric" placeholder="Façades (ex: 15)"></div>
+        <div><input id="eCote" type="number" inputmode="numeric" placeholder="Côtés (ex: 15)"></div>
+      </div>
+
+      <div class="pill" style="margin-top:14px;">Barrage (traverses)</div>
+      <div class="row2" style="margin-top:10px;">
+        <div><input id="bLargeur" type="number" value="80" inputmode="numeric" placeholder="Largeur (80)"></div>
+        <div><input id="bEp" type="number" value="18" inputmode="numeric" placeholder="Épaisseur (18)"></div>
+      </div>
+
+      <div class="pill" style="margin-top:14px;">Patins</div>
+      <div class="row2" style="margin-top:10px;">
+        <div><input id="pA" type="number" value="95" inputmode="numeric" placeholder="Section A (ex: 95)"></div>
+        <div><input id="pB" type="number" value="95" inputmode="numeric" placeholder="Section B (ex: 95)"></div>
+      </div>
+      <div class="row2" style="margin-top:10px;">
+        <div><input id="margePatin" type="number" value="30" inputmode="numeric" placeholder="Marge longueur patin (mm)"></div>
+        <div class="hint" style="align-self:center;">Longueur patin = L + marge</div>
+      </div>
+
+      <button onclick="calculer()">Calculer la fiche</button>
+
       <div id="err" class="err"></div>
+      <div id="out"></div>
     </div>
   </div>
 
   <script>
-    // Images À LA RACINE du repo (comme sur ta capture)
+    // Images À LA RACINE du repo
     const MODELES = [
       {ref:"M10",   img:"M10.jpg"},
       {ref:"M20",   img:"M20.jpg"},
@@ -75,73 +105,89 @@
     const selRef = document.getElementById("selRef");
     const selImg = document.getElementById("selImg");
     const errBox = document.getElementById("err");
-    const resBox = document.getElementById("res");
+    const outBox = document.getElementById("out");
 
-    function clearMsg(){
-      errBox.textContent = "";
-      resBox.textContent = "";
-    }
-
-    function showError(msg){
-      errBox.textContent = msg;
-    }
+    function clearMsg(){ errBox.textContent=""; outBox.innerHTML=""; }
+    function showError(msg){ errBox.textContent = msg; }
 
     MODELES.forEach(m => {
       const card = document.createElement("div");
       card.className = "card";
-      card.innerHTML = `
-        <img src="${m.img}" alt="${m.ref}" onerror="this.dataset.fail='1'; this.style.display='none';">
-        <div class="ref">${m.ref}</div>
-      `;
-
-      // si l'image ne charge pas, on affiche un message dans la carte
-      setTimeout(() => {
-        const img = card.querySelector("img");
-        if (img && img.dataset.fail === "1") {
-          const p = document.createElement("div");
-          p.style.color = "#ffb3b3";
-          p.style.fontSize = "12px";
-          p.style.marginTop = "8px";
-          p.style.textAlign = "center";
-          p.textContent = "Image introuvable : " + m.img;
-          card.insertBefore(p, card.querySelector(".ref"));
-        }
-      }, 300);
-
+      card.innerHTML = `<img src="${m.img}" alt="${m.ref}"><div class="ref">${m.ref}</div>`;
       card.onclick = () => {
         clearMsg();
         selRef.textContent = m.ref;
-        selImg.alt = m.ref;
         selImg.src = m.img;
-
-        selImg.onerror = () => {
-          showError(
-            "L’image du modèle ne se charge pas.\n" +
-            "Vérifie dans GitHub que le fichier existe EXACTEMENT avec ce nom :\n" +
-            "→ " + m.img
-          );
-        };
-
         panel.style.display = "block";
         window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
       };
-
       grid.appendChild(card);
     });
 
-    function valider(){
-      clearMsg();
-      const L = document.getElementById("L").value;
-      const l = document.getElementById("l").value;
-      const h = document.getElementById("h").value;
-      const ref = selRef.textContent || "—";
+    function n(id){ return Number(document.getElementById(id).value || 0); }
+    function fmtDim(a,b,c){ return `${a} x ${b} x ${c} mm`; }
 
-      if(!L || !l || !h){
-        showError("Merci de remplir Longueur, Largeur et Hauteur.");
-        return;
+    function calculer(){
+      clearMsg();
+
+      const L = n("L"), l = n("l"), h = n("h");
+      if(!L || !l || !h){ showError("Merci de remplir Longueur, Largeur et Hauteur."); return; }
+
+      // Épaisseurs (avec règle fond si L<1000)
+      const eFac = n("eFac") || 15;
+      const eCote = n("eCote") || 15;
+      let eFond = n("eFond") || 18;
+      if (L < 1000) eFond = 15; // règle donnée
+
+      // Barrage (toujours 80x18, mais on laisse editable)
+      const bLargeur = n("bLargeur") || 80;
+      const bEp = n("bEp") || 18;
+
+      // Patins
+      const pA = n("pA") || 95;
+      const pB = n("pB") || 95;
+      const marge = n("margePatin") || 30;
+      const longPatin = L + marge;
+
+      // règle patins si L < 700
+      let patins = [];
+      if (L < 700){
+        patins.push({nom:"Patin extérieur", qte:2, dim: fmtDim(longPatin, 95, 45)});
+        patins.push({nom:"Patin central",  qte:1, dim: fmtDim(longPatin, 95, 95)});
+      } else {
+        patins.push({nom:"Patin", qte:2, dim: fmtDim(longPatin, pA, pB)});
       }
 
-      resBox.textContent = `Modèle ${ref} | Dimensions : ${L} x ${l} x ${h} mm`;
+      // Exemple barrage (structure) : on met 2 barrages longueur = L (à affiner par modèle ensuite)
+      const barrages = [
+        {nom:"Barrage", qte:2, dim: fmtDim(L, bLargeur, bEp)}
+      ];
+
+      // Sortie
+      const ref = selRef.textContent || "—";
+      const resume = `
+        <div class="hint" style="margin-top:10px;">
+          <b>Modèle</b> : ${ref} — <b>Dimensions int.</b> : ${L} x ${l} x ${h} mm<br>
+          <b>Épaisseurs</b> : Fond ${eFond} / Façades ${eFac} / Côtés ${eCote} (mm)
+        </div>
+      `;
+
+      function table(title, rows){
+        return `
+          <h3 style="margin:14px 0 6px;">${title}</h3>
+          <table>
+            <thead><tr><th>Pièce</th><th>Qté</th><th>Dimensions (L x l x e)</th></tr></thead>
+            <tbody>
+              ${rows.map(r=>`<tr><td>${r.nom}</td><td>${r.qte}</td><td>${r.dim}</td></tr>`).join("")}
+            </tbody>
+          </table>
+        `;
+      }
+
+      outBox.innerHTML = resume + table("Patins", patins) + table("Barrages", barrages) +
+        `<div class="hint" style="margin-top:10px;">
+          ✅ Étape suivante : on ajoute les panneaux (façades, côtés, fond, couvercle) avec les formules EXACTES de chaque modèle (à partir de tes Excel).
+        </div>`;
     }
   </script>
 </body>
