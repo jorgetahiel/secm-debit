@@ -35,7 +35,7 @@
 
   <div class="wrap">
     <h2>Sélection du modèle</h2>
-    <div class="hint">Clique sur un modèle → saisis les dimensions → calcul M10 complet.</div>
+    <div class="hint">Choisis un modèle → saisis L/W/H → Calcul.</div>
 
     <div id="grid" class="grid"></div>
 
@@ -44,7 +44,7 @@
         <img id="selImg" src="" alt="">
         <div>
           <div style="font-weight:800;font-size:16px;">Modèle : <span id="selRef"></span></div>
-          <div class="hint">Calculs : M10 (depuis ton Excel) + règles patins <700</div>
+          <div class="hint">Les formules suivent tes fichiers Excel (M10/M20/M30/M40/M60).</div>
         </div>
       </div>
 
@@ -55,26 +55,25 @@
         <div><input id="H" type="number" inputmode="numeric" placeholder="Hauteur H (mm)"></div>
       </div>
 
-      <div class="pill" style="margin-top:14px;">Épaisseurs plaques (mm)</div>
+      <div class="pill" style="margin-top:14px;">Paramètres (par défaut = Excel)</div>
       <div class="row" style="margin-top:10px;">
-        <div><input id="eP" type="number" inputmode="numeric" value="15" placeholder="Panneaux (15)"></div>
-        <div><input id="eFond" type="number" inputmode="numeric" value="15" placeholder="Fond (15)"></div>
-        <div><input id="eCouv" type="number" inputmode="numeric" value="15" placeholder="Couvercle (15)"></div>
+        <div><input id="eP" type="number" inputmode="numeric" value="15" placeholder="Ép panneau (15)"></div>
+        <div><input id="eFond" type="number" inputmode="numeric" value="15" placeholder="Ép fond (15)"></div>
+        <div><input id="eCouv" type="number" inputmode="numeric" value="15" placeholder="Ép couvercle (15)"></div>
       </div>
 
-      <div class="pill" style="margin-top:14px;">Traverses (mm) — M10 = 100 x 18</div>
       <div class="row2" style="margin-top:10px;">
-        <div><input id="tLargeur" type="number" inputmode="numeric" value="100" placeholder="Largeur traverse (100)"></div>
-        <div><input id="tEp" type="number" inputmode="numeric" value="18" placeholder="Épaisseur traverse (18)"></div>
+        <div><input id="tEp" type="number" inputmode="numeric" value="18" placeholder="Ép ceinture/traverse (18)"></div>
+        <div><input id="tLarg" type="number" inputmode="numeric" value="100" placeholder="Larg ceinture/traverse (100)"></div>
       </div>
 
-      <div class="pill" style="margin-top:14px;">Patins (section au choix)</div>
+      <div class="pill" style="margin-top:14px;">Patins (section)</div>
       <div class="row2" style="margin-top:10px;">
-        <div><input id="pA" type="number" inputmode="numeric" value="95" placeholder="Section A (95)"></div>
-        <div><input id="pB" type="number" inputmode="numeric" value="95" placeholder="Section B (95)"></div>
+        <div><input id="pA" type="number" inputmode="numeric" value="95" placeholder="Patin A (95)"></div>
+        <div><input id="pB" type="number" inputmode="numeric" value="95" placeholder="Patin B (95)"></div>
       </div>
 
-      <button onclick="calculer()">Calculer M10</button>
+      <button onclick="calculer()">Calculer</button>
 
       <div id="err" class="err"></div>
       <div id="out"></div>
@@ -82,14 +81,15 @@
   </div>
 
   <script>
+    // Images à la racine du repo
     const MODELES = [
-      {ref:"M10",   img:"M10.jpg"},
-      {ref:"M20",   img:"M20.jpg"},
-      {ref:"M30",   img:"M30.jpg"},
-      {ref:"M40",   img:"M40.jpg"},
-      {ref:"M50",   img:"M50.jpg"},
-      {ref:"M60",   img:"M60.jpg"},
-      {ref:"M70",   img:"M70.jpg"},
+      {ref:"M10", img:"M10.jpg"},
+      {ref:"M20", img:"M20.jpg"},
+      {ref:"M30", img:"M30.jpg"},
+      {ref:"M40", img:"M40.jpg"},
+      {ref:"M50", img:"M50.jpg"},
+      {ref:"M60", img:"M60.jpg"},
+      {ref:"M70", img:"M70.jpg"},
       {ref:"M80-B", img:"M80-B.jpg"},
     ];
 
@@ -105,6 +105,200 @@
     function n(id){ return Number(document.getElementById(id).value || 0); }
     function dim(a,b,c){ return `${Math.round(a)} x ${Math.round(b)} x ${Math.round(c)} mm`; }
 
+    function table(title, rows){
+      return `
+        <h3 style="margin:14px 0 6px;">${title}</h3>
+        <table>
+          <thead><tr><th>Pièce</th><th>Qté</th><th>Dimensions (L x l x e)</th></tr></thead>
+          <tbody>
+            ${rows.map(r=>`<tr><td>${r.nom}</td><td>${r.qte}</td><td>${r.dim}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // Règle patins validée
+    function patinsRegle(L, patinLen, pA, pB){
+      if (L < 700){
+        return [
+          {nom:"PATIN extérieur", qte:2, dim: dim(patinLen, 95, 45)},
+          {nom:"PATIN central",  qte:1, dim: dim(patinLen, 95, 95)}
+        ];
+      }
+      const qte = (L >= 1200) ? 3 : 2;
+      return [{nom:"PATINS", qte:qte, dim: dim(patinLen, pA, pB)}];
+    }
+
+    // --- CALCULS PAR MODÈLE (issus de tes Excel) ---
+    function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
+      const faces_L = L + eP*2 + tEp*2;
+      const faces_H = H + eFond;
+
+      const panneaux = [
+        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+        {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)},
+        {nom:"FOND", qte:1, dim: dim(L + pB*0 + eP*0 + 0 + (eP*2), W, eFond)}, // Excel: L + 2*eP
+        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 3, W + eP*2, eCouv)},
+      ];
+
+      const patinLen = W + eP*2;
+      const patins = patinsRegle(L, patinLen, pA, pB);
+
+      const traverses = [
+        {nom:"TRAVERSES FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
+        {nom:"TRAVERSES CÔTÉS", qte:4, dim: dim(H + eP + eFond, tLarg, tEp)},
+        {nom:"TRAVERSES COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
+      ];
+
+      return {panneaux, patins, traverses};
+    }
+
+    function calcM20(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
+      const faces_L = L + eP*2 + tEp*2;
+      const faces_H = H + eFond;
+
+      const cotes_L = W + eFond + (pB - 5); // Excel: W + eFond + (H18-5)
+
+      const panneaux = [
+        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+        {nom:"CÔTÉS", qte:2, dim: dim(cotes_L, H, eP)},
+        {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
+        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)},
+      ];
+
+      const patinLen = W + eP*2;
+      const patins = patinsRegle(L, patinLen, pA, pB);
+
+      const ceintures = [
+        {nom:"CEINTURES FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
+        {nom:"CEINTURES CÔTÉS", qte:4, dim: dim(cotes_L + eCouv, tLarg, tEp)},
+        {nom:"CEINTURES COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
+      ];
+
+      return {panneaux, patins, traverses: ceintures};
+    }
+
+    function calcM30(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
+      const faces_L = L + eP*2;
+      const faces_H = H + eFond;
+
+      const cotes_H = H + eFond + (pB - 5); // Excel: H + eFond + (H18-5)
+
+      const panneaux = [
+        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+        {nom:"CÔTÉS", qte:2, dim: dim(W, cotes_H, eP)},
+        {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
+        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2 - 2, eCouv)},
+      ];
+
+      const patinLen = W + eP*2;
+      const patins = patinsRegle(L, patinLen, pA, pB);
+
+      const ceintures = [
+        {nom:"CEINTURE FACES", qte:4, dim: dim(faces_H + (pB - 5) + eCouv, tLarg, tEp)},
+        {nom:"CEINTURE CÔTÉS", qte:4, dim: dim(cotes_H + 15, tLarg, tEp)},
+        {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2 - 2, tLarg, tEp)},
+      ];
+
+      return {panneaux, patins, traverses: ceintures};
+    }
+
+    function calcM40(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
+      const faces_L = L + eP*2;
+      const faces_H = H + eFond;
+
+      const cotes_L = W + eFond + (pB - 5);
+
+      const panneaux = [
+        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+        {nom:"CÔTÉS", qte:2, dim: dim(cotes_L, H, eP)},
+        {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
+        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2 - 2, eCouv)},
+      ];
+
+      const patinLen = W + eP*2;
+      const patins = patinsRegle(L, patinLen, pA, pB);
+
+      const ceintures = [
+        {nom:"CEINTURE FACES", qte:4, dim: dim(faces_H + eCouv + (pB - 5), tLarg, tEp)},
+        {nom:"CEINTURE CÔTÉS", qte:4, dim: dim(cotes_L + eCouv, tLarg, tEp)},
+        {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2 - 2, tLarg, tEp)},
+      ];
+
+      return {panneaux, patins, traverses: ceintures};
+    }
+
+    function calcM60(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
+      const faces_L = L + eP*2;
+      const faces_H = H;
+
+      const fond_L = L + eP*2;
+      const fond_W = W + eP*2;
+
+      const panneaux = [
+        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+        {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)},
+        {nom:"FOND", qte:1, dim: dim(fond_L, fond_W, eFond)},
+        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2 - 2, eCouv)},
+      ];
+
+      const patinLen = fond_W; // Excel: longueur patin = largeur fond
+      const patins = patinsRegle(L, patinLen, pA, pB);
+
+      // Excel M60 : ceintures avec 2ème dimension spéciale (pA + tEp / pA)
+      const ceintures = [
+        {nom:"CEINTURE FACES", qte:4, dim: dim(faces_H + eFond + pB + eCouv, pA + tEp, tEp)},
+        {nom:"CEINTURE CÔTÉS", qte:4, dim: dim(faces_H + eFond + pB + eCouv, pA, tEp)},
+        {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2 - 2, pA, tEp)},
+      ];
+
+      return {panneaux, patins, traverses: ceintures};
+    }
+
+    function calculer(){
+      clearMsg();
+
+      const ref = selRef.textContent || "";
+      const L = n("L"), W = n("W"), H = n("H");
+      if(!ref){ showError("Choisis un modèle."); return; }
+      if(!L || !W || !H){ showError("Merci de remplir L, W et H."); return; }
+
+      const eP = n("eP") || 15;
+      const eFond = n("eFond") || 15;
+      const eCouv = n("eCouv") || 15;
+      const tEp = n("tEp") || 18;
+      const tLarg = n("tLarg") || 100;
+
+      let pA = n("pA") || 95;
+      let pB = n("pB") || 95;
+
+      // M60 dans ton Excel a une section patins différente (70 x 18)
+      if(ref === "M60"){
+        if(!n("pA")) pA = 70;
+        if(!n("pB")) pB = 18;
+      }
+
+      let result = null;
+      if(ref === "M10") result = calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
+      else if(ref === "M20") result = calcM20(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
+      else if(ref === "M30") result = calcM30(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
+      else if(ref === "M40") result = calcM40(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
+      else if(ref === "M60") result = calcM60(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
+      else {
+        showError("Ce modèle n'a pas encore ses calculs (pour l'instant : M10/M20/M30/M40/M60).");
+        return;
+      }
+
+      outBox.innerHTML =
+        `<div class="hint" style="margin-top:10px;">
+          <b>${ref}</b> — Dimensions intérieures : ${L} x ${W} x ${H} mm
+        </div>` +
+        table("Panneaux", result.panneaux) +
+        table("Patins", result.patins) +
+        table("Ceintures / Traverses", result.traverses);
+    }
+
+    // UI: affichage des modèles
     MODELES.forEach(m => {
       const card = document.createElement("div");
       card.className = "card";
@@ -118,86 +312,6 @@
       };
       grid.appendChild(card);
     });
-
-    function table(title, rows){
-      return `
-        <h3 style="margin:14px 0 6px;">${title}</h3>
-        <table>
-          <thead><tr><th>Pièce</th><th>Qté</th><th>Dimensions (L x l x e)</th></tr></thead>
-          <tbody>
-            ${rows.map(r=>`<tr><td>${r.nom}</td><td>${r.qte}</td><td>${r.dim}</td></tr>`).join("")}
-          </tbody>
-        </table>
-      `;
-    }
-
-    function calculer(){
-      clearMsg();
-
-      const ref = selRef.textContent || "—";
-      const L = n("L"), W = n("W"), H = n("H");
-      if(!L || !W || !H){ showError("Merci de remplir Longueur (L), Largeur (W), Hauteur (H)."); return; }
-
-      const eP = n("eP") || 15;        // panneaux faces/cotes
-      const eFond = n("eFond") || 15;  // fond
-      const eCouv = n("eCouv") || 15;  // couvercle
-      const tLargeur = n("tLargeur") || 100;
-      const tEp = n("tEp") || 18;
-
-      const pA = n("pA") || 95;
-      const pB = n("pB") || 95;
-
-      // --- M10 (formules Excel) ---
-      // Faces (x2)
-      const faces_L = L + (eP*2) + (tEp*2);
-      const faces_H = H + eFond;
-      const faces = {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)};
-
-      // Côtes (x2)
-      const cotes = {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)};
-
-      // Fond (x1) — dans ton Excel l'ajout latéral est à 0 → fond = L x W
-      const fond = {nom:"FOND", qte:1, dim: dim(L, W, eFond)};
-
-      // Couvercle (x1)
-      const couv_L = L + (eP*2) - 3;
-      const couv_W = W + (eP*2);
-      const couv = {nom:"COUVERCLE", qte:1, dim: dim(couv_L, couv_W, eCouv)};
-
-      // Patins — Excel : longueur = W + 2*eP ; qté = 3 si L>=1200 sinon 2
-      const patin_L = W + (eP*2);
-
-      let patinsRows = [];
-      if (L < 700){
-        // ta règle validée
-        patinsRows.push({nom:"PATIN extérieur", qte:2, dim: dim(patin_L, 95, 45)});
-        patinsRows.push({nom:"PATIN central", qte:1, dim: dim(patin_L, 95, 95)});
-      } else {
-        const qtePatins = (L >= 1200) ? 3 : 2;
-        patinsRows.push({nom:"PATINS", qte:qtePatins, dim: dim(patin_L, pA, pB)});
-      }
-
-      // Traverses (section = tLargeur x tEp)
-      const travFaces = {nom:"TRAVERSES FACES", qte:2, dim: dim(faces_L, tLargeur, tEp)};
-      const travCotes = {nom:"TRAVERSES CÔTÉS", qte:4, dim: dim(H + eP + eFond, tLargeur, tEp)};
-      const travCouv  = {nom:"TRAVERSES COUVERCLE", qte:2, dim: dim(patin_L, tLargeur, tEp)};
-
-      const resume = `
-        <div class="hint" style="margin-top:10px;">
-          <b>Modèle</b> : ${ref} — <b>Dimensions int.</b> : ${L} x ${W} x ${H} mm<br>
-          <b>Ép.</b> : panneaux ${eP} | fond ${eFond} | couvercle ${eCouv} (mm) — <b>traverses</b> ${tLargeur} x ${tEp}
-        </div>
-      `;
-
-      const panneaux = [faces, cotes, fond, couv];
-      const traverses = [travFaces, travCotes, travCouv];
-
-      outBox.innerHTML =
-        resume +
-        table("Panneaux", panneaux) +
-        table("Patins", patinsRows) +
-        table("Traverses", traverses);
-    }
   </script>
 </body>
 </html>
