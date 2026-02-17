@@ -306,6 +306,14 @@ function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const parts = clean.split("x").map(s=>s.trim().split(" ")[0]);
       return parts.slice(0,3);
     }
+function getImageSize(dataUrl){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
 
     async function genererPDF(){
       clearMsg();
