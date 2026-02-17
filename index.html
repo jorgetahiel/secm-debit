@@ -11,38 +11,50 @@
 
   <style>
     body{font-family:Arial;margin:0;background:#0f1216;color:#fff}
-    header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#11151b;position:sticky;top:0;z-index:10}
-    header h1{font-size:18px;margin:0}
+    .topbar{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#11151b;position:sticky;top:0;z-index:10}
+    .topbar h1{font-size:18px;margin:0}
+    .logo{height:38px;width:auto}
     .wrap{max-width:980px;margin:0 auto;padding:16px}
     h2{margin:6px 0 12px}
+    .hint{color:#cfd6e4;font-size:13px}
+
     .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     .card{background:#151a21;border-radius:14px;padding:10px;cursor:pointer;border:1px solid #222a35}
     .card img{width:100%;height:160px;object-fit:contain;background:#0f1216;border-radius:10px}
     .card .ref{margin-top:8px;text-align:center;font-weight:700}
+
     .panel{margin-top:14px;background:#151a21;border:1px solid #222a35;border-radius:14px;padding:14px;display:none}
+    .selected{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+    .selected img{width:90px;height:70px;object-fit:contain;background:#0f1216;border-radius:10px}
+
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#0f1216;border:1px solid #222a35;font-size:12px;color:#cfd6e4}
     .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
     .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     input{width:100%;padding:10px;border-radius:10px;border:1px solid #2b3442;background:#0f1216;color:#fff}
-    button{padding:12px 14px;border-radius:12px;border:none;background:#ffd400;color:#111;font-weight:800;cursor:pointer;margin-top:12px}
+
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    button{padding:12px 14px;border-radius:12px;border:none;background:#ffd400;color:#111;font-weight:800;cursor:pointer}
     .btn2{background:#e6e9ef;color:#111}
-    .selected{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-    .selected img{width:90px;height:70px;object-fit:contain;background:#0f1216;border-radius:10px}
-    .hint{color:#cfd6e4;font-size:13px}
+
     .err{margin-top:10px;color:#ffb3b3;font-size:13px;white-space:pre-line}
+
     table{width:100%;border-collapse:collapse;margin-top:12px}
     th,td{border-bottom:1px solid #222a35;padding:10px;text-align:left;font-size:14px}
     th{color:#cfd6e4;font-size:13px;font-weight:700}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#0f1216;border:1px solid #222a35;font-size:12px;color:#cfd6e4}
-    .actions{display:flex;gap:10px;flex-wrap:wrap}
+
     @media (min-width: 720px){ .grid{grid-template-columns:repeat(4,minmax(0,1fr));} }
   </style>
 </head>
+
 <body>
-  <header><h1>Application Débit SECM</h1></header>
+  <header class="topbar">
+    <img src="secm_logo.png" class="logo" alt="SECM Logo" onerror="this.style.display='none'">
+    <h1>Application Débit SECM</h1>
+  </header>
 
   <div class="wrap">
     <h2>Sélection du modèle</h2>
-    <div class="hint">Choisis un modèle → saisis L/W/H → Calcul → PDF.</div>
+    <div class="hint">Choisis un modèle → saisis L/W/H → Calculer → Générer PDF (A4 portrait).</div>
 
     <div id="grid" class="grid"></div>
 
@@ -51,7 +63,7 @@
         <img id="selImg" src="" alt="">
         <div>
           <div style="font-weight:800;font-size:16px;">Modèle : <span id="selRef"></span></div>
-          <div class="hint">Calculs spécifiques + PDF A4 portrait.</div>
+          <div class="hint">Calculs spécifiques + PDF 1 page.</div>
         </div>
       </div>
 
@@ -62,7 +74,7 @@
         <div><input id="H" type="number" inputmode="numeric" placeholder="Hauteur H (mm)"></div>
       </div>
 
-      <div class="pill" style="margin-top:14px;">Paramètres (par défaut = Excel)</div>
+      <div class="pill" style="margin-top:14px;">Paramètres (par défaut)</div>
       <div class="row" style="margin-top:10px;">
         <div><input id="eP" type="number" inputmode="numeric" value="15" placeholder="Ép panneau (15)"></div>
         <div><input id="eFond" type="number" inputmode="numeric" value="15" placeholder="Ép fond (15)"></div>
@@ -71,7 +83,7 @@
 
       <div class="row2" style="margin-top:10px;">
         <div><input id="tEp" type="number" inputmode="numeric" value="18" placeholder="Ép ceinture/traverse (18)"></div>
-        <div><input id="tLarg" type="number" inputmode="numeric" value="100" placeholder="Larg ceinture/traverse (100)"></div>
+        <div><input id="tLarg" type="number" inputmode="numeric" value="100" placeholder="Largeur ceinture/traverse (100)"></div>
       </div>
 
       <div class="pill" style="margin-top:14px;">Patins (section)</div>
@@ -91,7 +103,7 @@
   </div>
 
   <script>
-    // --------- DATA / UI ----------
+    // ====== MODELES (images à la racine) ======
     const MODELES = [
       {ref:"M10", img:"M10.jpg"},
       {ref:"M20", img:"M20.jpg"},
@@ -129,6 +141,7 @@
       `;
     }
 
+    // ====== REGLE PATINS (validée) ======
     function patinsRegle(L, patinLen, pA, pB){
       if (L < 700){
         return [
@@ -140,94 +153,102 @@
       return [{nom:"PATINS", qte:qte, dim: dim(patinLen, pA, pB)}];
     }
 
-    // --------- CALCS (comme tu as déjà) ----------
-function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
-  // Dernier M10.xlsx (Feuil1 lignes 21-28)
-  const faces_L = L + eP*2 + tEp*2;     // =D9+F13*2+F16*2
-  const faces_H = H + eFond;           // =H9+F14
+    // ====== CALCULS PAR MODELE ======
+    // M10 (corrigé : CEINTURES)
+    function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
+      const faces_L = L + eP*2 + tEp*2;
+      const faces_H = H + eFond;
 
-  const panneaux = [
-    {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
-    {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)},
-    // FOND = Largeur + 2*ép_panneaux  X  Largeur  (oui c'est basé sur W dans ton Excel)
-    {nom:"FOND", qte:1, dim: dim(W + eP*2, W, eFond)},
-    // COUVERCLE
-    {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)},
-  ];
+      const panneaux = [
+        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+        {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)},
+        // Dernier M10.xlsx : fond basé sur W (si c'est ton cas actuel)
+        {nom:"FOND", qte:1, dim: dim(W + eP*2, W, eFond)},
+        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)},
+      ];
 
-  // PATINS : longueur = W + 2*eP
-  const patinLen = W + eP*2;
-  const patins = patinsRegle(L, patinLen, pA, pB); // garde ta règle L<700
+      const patinLen = W + eP*2;
+      const patins = patinsRegle(L, patinLen, pA, pB);
 
-  // CEINTURES (pas traverses)
-  const ceintures = [
-    {nom:"CEINTURE FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
-    {nom:"CEINTURE COTES", qte:4, dim: dim(H + eP + eFond, tLarg, tEp)},
-    {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
-  ];
+      const ceintures = [
+        {nom:"CEINTURE FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
+        {nom:"CEINTURE COTES", qte:4, dim: dim(H + eP + eFond, tLarg, tEp)},
+        {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
+      ];
 
-  return {panneaux, patins, traverses: ceintures};
-}
-
+      return {panneaux, patins, traverses: ceintures};
+    }
 
     function calcM20(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const faces_L = L + eP*2 + tEp*2;
       const faces_H = H + eFond;
       const cotes_L = W + eFond + (pB - 5);
+
       const panneaux = [
         {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
         {nom:"CÔTÉS", qte:2, dim: dim(cotes_L, H, eP)},
         {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
         {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)},
       ];
+
       const patinLen = W + eP*2;
       const patins = patinsRegle(L, patinLen, pA, pB);
-      const traverses = [
+
+      const ceintures = [
         {nom:"CEINTURES FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
         {nom:"CEINTURES CÔTÉS", qte:4, dim: dim(cotes_L + eCouv, tLarg, tEp)},
         {nom:"CEINTURES COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
       ];
-      return {panneaux, patins, traverses};
+
+      return {panneaux, patins, traverses: ceintures};
     }
 
     function calcM30(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const faces_L = L + eP*2;
       const faces_H = H + eFond;
       const cotes_H = H + eFond + (pB - 5);
+
       const panneaux = [
         {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
         {nom:"CÔTÉS", qte:2, dim: dim(W, cotes_H, eP)},
         {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
         {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2 - 2, eCouv)},
       ];
+
       const patinLen = W + eP*2;
       const patins = patinsRegle(L, patinLen, pA, pB);
-      const traverses = [
+
+      const ceintures = [
         {nom:"CEINTURE FACES", qte:4, dim: dim(faces_H + (pB - 5) + eCouv, tLarg, tEp)},
         {nom:"CEINTURE CÔTÉS", qte:4, dim: dim(cotes_H + 15, tLarg, tEp)},
         {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2 - 2, tLarg, tEp)},
       ];
-      return {panneaux, patins, traverses};
+
+      return {panneaux, patins, traverses: ceintures};
     }
 
     function calcM40(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const faces_L = L + eP*2;
       const faces_H = H + eFond;
       const cotes_L = W + eFond + (pB - 5);
+
       const panneaux = [
         {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
         {nom:"CÔTÉS", qte:2, dim: dim(cotes_L, H, eP)},
         {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
         {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2 - 2, eCouv)},
       ];
+
       const patinLen = W + eP*2;
       const patins = patinsRegle(L, patinLen, pA, pB);
-      const traverses = [
+
+      const ceintures = [
         {nom:"CEINTURE FACES", qte:4, dim: dim(faces_H + eCouv + (pB - 5), tLarg, tEp)},
         {nom:"CEINTURE CÔTÉS", qte:4, dim: dim(cotes_L + eCouv, tLarg, tEp)},
         {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2 - 2, tLarg, tEp)},
       ];
-      return {panneaux, patins, traverses};
+
+      return {panneaux, patins, traverses: ceintures};
     }
 
     function calcM60(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
@@ -235,23 +256,27 @@ function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const faces_H = H;
       const fond_L = L + eP*2;
       const fond_W = W + eP*2;
+
       const panneaux = [
         {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
         {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)},
         {nom:"FOND", qte:1, dim: dim(fond_L, fond_W, eFond)},
         {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2 - 2, eCouv)},
       ];
+
       const patinLen = fond_W;
       const patins = patinsRegle(L, patinLen, pA, pB);
-      const traverses = [
+
+      const ceintures = [
         {nom:"CEINTURE FACES", qte:4, dim: dim(faces_H + eFond + pB + eCouv, pA + tEp, tEp)},
         {nom:"CEINTURE CÔTÉS", qte:4, dim: dim(faces_H + eFond + pB + eCouv, pA, tEp)},
         {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2 - 2, pA, tEp)},
       ];
-      return {panneaux, patins, traverses};
+
+      return {panneaux, patins, traverses: ceintures};
     }
 
-    // --------- MAIN CALC ----------
+    // ====== CALCUL PRINCIPAL ======
     function calculer(){
       clearMsg();
 
@@ -269,7 +294,11 @@ function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       let pA = n("pA") || 95;
       let pB = n("pB") || 95;
 
-      if(ref === "M60"){ if(!n("pA")) pA = 70; if(!n("pB")) pB = 18; }
+      // M60 par défaut 70x18 si champ vide
+      if(ref === "M60"){
+        if(!n("pA")) pA = 70;
+        if(!n("pB")) pB = 18;
+      }
 
       let result = null;
       if(ref === "M10") result = calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
@@ -288,7 +317,7 @@ function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
         tableHTML("Ceintures / Traverses", result.traverses);
     }
 
-    // --------- PDF HELPERS ----------
+    // ====== PDF (images non étirées) ======
     function fetchAsDataURL(url){
       return fetch(url, {cache:"no-store"})
         .then(r => { if(!r.ok) throw new Error("HTTP " + r.status); return r.blob(); })
@@ -300,23 +329,23 @@ function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
         }));
     }
 
+    function getImageSize(dataUrl){
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+    }
+
     function parseDimsToCols(d){
-      // "123 x 456 x 15 mm" => ["123","456","15"]
       const clean = String(d).replace("mm","").trim();
       const parts = clean.split("x").map(s=>s.trim().split(" ")[0]);
       return parts.slice(0,3);
     }
-function getImageSize(dataUrl){
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-    img.onerror = reject;
-    img.src = dataUrl;
-  });
-}
 
     async function genererPDF(){
-      clearMsg();
+      errBox.textContent = "";
       if(!lastResult){
         showError("Clique d'abord sur 'Calculer' pour générer le PDF.");
         return;
@@ -331,15 +360,14 @@ function getImageSize(dataUrl){
       const margin = 10;
       let y = margin;
 
-      // logo (optionnel)
+      // Logo PDF (optionnel)
       try{
         const logo = await fetchAsDataURL("secm_logo.png");
+        // si ton logo est JPG, change "PNG" -> "JPEG"
         doc.addImage(logo, "PNG", margin, y, 35, 14);
-      }catch(e){
-        // pas grave
-      }
+      }catch(e){}
 
-      // titre
+      // Titre
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
       doc.text(`Fiche de débit - Référence : ${lastResult.ref}`, 50, y+8);
@@ -378,44 +406,39 @@ function getImageSize(dataUrl){
       addSection("Patins", lastResult.patins);
       addSection("Ceintures / Traverses", lastResult.traverses);
 
-      // Image modèle en bas (ratio conservé)
-try{
-  const imgData = await fetchAsDataURL(`${lastResult.ref}.jpg`);
-  const size = await getImageSize(imgData);
+      // Image modèle en bas (ratio conservé + centrée, jamais étirée)
+      try{
+        const imgData = await fetchAsDataURL(`${lastResult.ref}.jpg`);
+        const size = await getImageSize(imgData);
 
-  const maxW = pageW - margin*2;
-  let maxH = 55;                       // hauteur cible
-  let imgY = pageH - margin - maxH;
+        const maxW = pageW - margin*2;
+        let maxH = 55; // zone image cible
+        let imgY = pageH - margin - maxH;
 
-  // si les tableaux descendent trop, on réduit la zone image pour rester sur 1 page
-  if (y + 5 > imgY){
-    maxH = Math.max(25, pageH - margin - y - 5);
-    imgY = pageH - margin - maxH;
-  }
+        // Si les tableaux descendent trop, on réduit maxH pour rester sur une seule page
+        if (y + 5 > imgY){
+          maxH = Math.max(25, pageH - margin - y - 5);
+          imgY = pageH - margin - maxH;
+        }
 
-  // Calcul dimensions en gardant le ratio
-  const ratio = size.w / size.h;
-  let drawW = maxW;
-  let drawH = drawW / ratio;
+        const ratio = size.w / size.h;
+        let drawW = maxW;
+        let drawH = drawW / ratio;
 
-  if (drawH > maxH){
-    drawH = maxH;
-    drawW = drawH * ratio;
-  }
+        if (drawH > maxH){
+          drawH = maxH;
+          drawW = drawH * ratio;
+        }
 
-  // Centrer horizontalement
-  const imgX = (pageW - drawW) / 2;
+        const imgX = (pageW - drawW) / 2;
 
-  doc.addImage(imgData, "JPEG", imgX, imgY, drawW, drawH);
-}catch(e){
-  // pas grave
-}
-
+        doc.addImage(imgData, "JPEG", imgX, imgY, drawW, drawH);
+      }catch(e){}
 
       doc.save(`Fiche_debit_${lastResult.ref}.pdf`);
     }
 
-    // --------- RENDER MODELS ----------
+    // ====== UI RENDER ======
     MODELES.forEach(m => {
       const card = document.createElement("div");
       card.className = "card";
@@ -425,7 +448,7 @@ try{
         selRef.textContent = m.ref;
         selImg.src = m.img;
         panel.style.display = "block";
-        lastResult = null; // reset
+        lastResult = null;
         window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
       };
       grid.appendChild(card);
