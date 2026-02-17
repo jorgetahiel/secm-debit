@@ -378,23 +378,39 @@ function getImageSize(dataUrl){
       addSection("Patins", lastResult.patins);
       addSection("Ceintures / Traverses", lastResult.traverses);
 
-      // Image modèle en bas (si place)
-      try{
-        const imgData = await fetchAsDataURL(`${lastResult.ref}.jpg`);
-        const imgMaxW = pageW - margin*2;
-        let imgH = 55; // hauteur cible
-        let imgY = pageH - margin - imgH;
+      // Image modèle en bas (ratio conservé)
+try{
+  const imgData = await fetchAsDataURL(`${lastResult.ref}.jpg`);
+  const size = await getImageSize(imgData);
 
-        // si les tableaux descendent trop, on réduit l'image pour rester sur 1 page
-        if (y + 5 > imgY){
-          imgH = Math.max(25, pageH - margin - y - 5);
-          imgY = pageH - margin - imgH;
-        }
+  const maxW = pageW - margin*2;
+  let maxH = 55;                       // hauteur cible
+  let imgY = pageH - margin - maxH;
 
-        doc.addImage(imgData, "JPEG", margin, imgY, imgMaxW, imgH);
-      }catch(e){
-        // pas grave
-      }
+  // si les tableaux descendent trop, on réduit la zone image pour rester sur 1 page
+  if (y + 5 > imgY){
+    maxH = Math.max(25, pageH - margin - y - 5);
+    imgY = pageH - margin - maxH;
+  }
+
+  // Calcul dimensions en gardant le ratio
+  const ratio = size.w / size.h;
+  let drawW = maxW;
+  let drawH = drawW / ratio;
+
+  if (drawH > maxH){
+    drawH = maxH;
+    drawW = drawH * ratio;
+  }
+
+  // Centrer horizontalement
+  const imgX = (pageW - drawW) / 2;
+
+  doc.addImage(imgData, "JPEG", imgX, imgY, drawW, drawH);
+}catch(e){
+  // pas grave
+}
+
 
       doc.save(`Fiche_debit_${lastResult.ref}.pdf`);
     }
