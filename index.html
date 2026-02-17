@@ -183,28 +183,37 @@
     }
 
     function calcM20(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
-      const faces_L = L + eP*2 + tEp*2;
-      const faces_H = H + eFond;
-      const cotes_L = W + eFond + (pB - 5);
+  // Formules exactes de M20.xlsx (Feuil1, lignes 21-28)
 
-      const panneaux = [
-        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
-        {nom:"CÔTÉS", qte:2, dim: dim(cotes_L, H, eP)},
-        {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
-        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)},
-      ];
+  // FACES
+  const faces_L = L + eP*2 + tEp*2;   // =D9+F13*2+F16*2
+  const faces_H = H + eFond;         // =H9+F14
 
-      const patinLen = W + eP*2;
-      const patins = patinsRegle(L, patinLen, pA, pB);
+  // CÔTÉS
+  const cotes_L = W;                  // =F9
+  const cotes_H = H + eFond + pB - 5; // =H9+F14+H18-5  (H18 = patinB)
 
-      const ceintures = [
-        {nom:"CEINTURES FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
-        {nom:"CEINTURES CÔTÉS", qte:4, dim: dim(cotes_L + eCouv, tLarg, tEp)},
-        {nom:"CEINTURES COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
-      ];
+  const panneaux = [
+    {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+    {nom:"CÔTÉS", qte:2, dim: dim(cotes_L, cotes_H, eP)},
+    {nom:"FOND", qte:1, dim: dim(L, W, eFond)},                 // =D9 x F9 x F14
+    {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)} // =D9+F13*2-2  x  F9+F13*2
+  ];
 
-      return {panneaux, patins, traverses: ceintures};
-    }
+  // PATINS
+  const patinLen = W + eP*2;          // =F9+F13*2
+  const patins = patinsRegle(L, patinLen, pA, pB); // garde ta règle L<700 prioritaire
+
+  // CEINTURES
+  const ceintures = [
+    {nom:"CEINTURES FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},                 // =D21 x H16 x F16
+    {nom:"CEINTURES CÔTÉS", qte:4, dim: dim(cotes_H + eCouv, tLarg, tEp)},         // =F22+F15
+    {nom:"CEINTURES COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)}             // =F24 x H17 x F17
+  ];
+
+  return {panneaux, patins, traverses: ceintures};
+}
+
 
     function calcM30(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const faces_L = L + eP*2;
