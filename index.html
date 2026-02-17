@@ -141,24 +141,34 @@
     }
 
     // --------- CALCS (comme tu as déjà) ----------
-    function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
-      const faces_L = L + eP*2 + tEp*2;
-      const faces_H = H + eFond;
-      const panneaux = [
-        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
-        {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)},
-        {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
-        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 3, W + eP*2, eCouv)},
-      ];
-      const patinLen = W + eP*2;
-      const patins = patinsRegle(L, patinLen, pA, pB);
-      const traverses = [
-        {nom:"TRAVERSES FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
-        {nom:"TRAVERSES CÔTÉS", qte:4, dim: dim(H + eP + eFond, tLarg, tEp)},
-        {nom:"TRAVERSES COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
-      ];
-      return {panneaux, patins, traverses};
-    }
+function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
+  // Dernier M10.xlsx (Feuil1 lignes 21-28)
+  const faces_L = L + eP*2 + tEp*2;     // =D9+F13*2+F16*2
+  const faces_H = H + eFond;           // =H9+F14
+
+  const panneaux = [
+    {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+    {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)},
+    // FOND = Largeur + 2*ép_panneaux  X  Largeur  (oui c'est basé sur W dans ton Excel)
+    {nom:"FOND", qte:1, dim: dim(W + eP*2, W, eFond)},
+    // COUVERCLE
+    {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)},
+  ];
+
+  // PATINS : longueur = W + 2*eP
+  const patinLen = W + eP*2;
+  const patins = patinsRegle(L, patinLen, pA, pB); // garde ta règle L<700
+
+  // CEINTURES (pas traverses)
+  const ceintures = [
+    {nom:"CEINTURE FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
+    {nom:"CEINTURE COTES", qte:4, dim: dim(H + eP + eFond, tLarg, tEp)},
+    {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
+  ];
+
+  return {panneaux, patins, traverses: ceintures};
+}
+
 
     function calcM20(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const faces_L = L + eP*2 + tEp*2;
