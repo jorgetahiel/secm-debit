@@ -1,9 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#11151b">
-
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>SECM - Application Débit</title>
@@ -66,7 +63,7 @@
         <img id="selImg" src="" alt="">
         <div>
           <div style="font-weight:800;font-size:16px;">Modèle : <span id="selRef"></span></div>
-          <div class="hint">Calculs spécifiques + PDF 1 page.</div>
+          <div class="hint">Calculs alignés sur tes Excel (lignes 21→28 + QTE colonne J).</div>
         </div>
       </div>
 
@@ -77,22 +74,22 @@
         <div><input id="H" type="number" inputmode="numeric" placeholder="Hauteur H (mm)"></div>
       </div>
 
-      <div class="pill" style="margin-top:14px;">Paramètres (par défaut)</div>
+      <div class="pill" style="margin-top:14px;">Paramètres (par défaut = Excel)</div>
       <div class="row" style="margin-top:10px;">
-        <div><input id="eP" type="number" inputmode="numeric" value="15" placeholder="Ép panneau (15)"></div>
-        <div><input id="eFond" type="number" inputmode="numeric" value="15" placeholder="Ép fond (15)"></div>
-        <div><input id="eCouv" type="number" inputmode="numeric" value="15" placeholder="Ép couvercle (15)"></div>
+        <div><input id="eP" type="number" inputmode="numeric" value="15" placeholder="Ép panneaux (F13)"></div>
+        <div><input id="eFond" type="number" inputmode="numeric" value="15" placeholder="Ép fond (F14)"></div>
+        <div><input id="eCouv" type="number" inputmode="numeric" value="15" placeholder="Ép couvercle (F15)"></div>
       </div>
 
       <div class="row2" style="margin-top:10px;">
-        <div><input id="tEp" type="number" inputmode="numeric" value="18" placeholder="Ép ceinture/traverse (18)"></div>
-        <div><input id="tLarg" type="number" inputmode="numeric" value="100" placeholder="Largeur ceinture/traverse (100)"></div>
+        <div><input id="tEp" type="number" inputmode="numeric" value="18" placeholder="Ép ceinture/traverse (F16/F17)"></div>
+        <div><input id="tLarg" type="number" inputmode="numeric" value="100" placeholder="Largeur ceinture/traverse (H16/H17)"></div>
       </div>
 
       <div class="pill" style="margin-top:14px;">Patins (section)</div>
       <div class="row2" style="margin-top:10px;">
-        <div><input id="pA" type="number" inputmode="numeric" value="95" placeholder="Patin A (95)"></div>
-        <div><input id="pB" type="number" inputmode="numeric" value="95" placeholder="Patin B (95)"></div>
+        <div><input id="pA" type="number" inputmode="numeric" value="95" placeholder="Patin A (F18)"></div>
+        <div><input id="pB" type="number" inputmode="numeric" value="95" placeholder="Patin B (H18)"></div>
       </div>
 
       <div class="actions">
@@ -125,12 +122,13 @@
     const errBox = document.getElementById("err");
     const outBox = document.getElementById("out");
 
-    let lastResult = null; // {ref,L,W,H,panneaux,patins,traverses}
+    let lastResult = null; // {ref,L,W,H, rows:[{nom,qte,dim}], panneaux, patins, renforts}
 
     function clearMsg(){ errBox.textContent=""; outBox.innerHTML=""; }
     function showError(msg){ errBox.textContent = msg; }
     function n(id){ return Number(document.getElementById(id).value || 0); }
-    function dim(a,b,c){ return `${Math.round(a)} x ${Math.round(b)} x ${Math.round(c)} mm`; }
+    function round(x){ return Math.round(Number(x)); }
+    function dim(a,b,c){ return `${round(a)} x ${round(b)} x ${round(c)} mm`; }
 
     function tableHTML(title, rows){
       return `
@@ -144,151 +142,230 @@
       `;
     }
 
-    // ====== REGLE PATINS (validée) ======
-    function patinsRegle(L, patinLen, pA, pB){
+    // ====== Règle patins validée (prioritaire) ======
+    function patinsRegle(L, patinLen, qteExcel, pA, pB){
       if (L < 700){
         return [
           {nom:"PATIN extérieur", qte:2, dim: dim(patinLen, 95, 45)},
           {nom:"PATIN central",  qte:1, dim: dim(patinLen, 95, 95)}
         ];
       }
-      const qte = (L >= 1200) ? 3 : 2;
+      // Excel: =IF(D9>=1200,3,2)
+      const qte = (typeof qteExcel === "number") ? qteExcel : ((L >= 1200) ? 3 : 2);
       return [{nom:"PATINS", qte:qte, dim: dim(patinLen, pA, pB)}];
     }
 
-    // ====== CALCULS PAR MODELE ======
-    // M10 (corrigé : CEINTURES)
+    // ====== CALCULS (copie exacte des formules vues dans les Excel) ======
+
+    // M10.xlsx (TRAVERSES)
+    // 21 FACES:   D = L + 2*eP + 2*tEp ; F = H + eFond ; H = eP ; QTE=2
+    // 22 COTES:   D = W ; F = H ; H = eP ; QTE=2
+    // 23 FOND:    D = W + 2*eP ; F = W ; H = eFond ; QTE=1
+    // 24 COUVERCLE: D = L + 2*eP - 2 ; F = W + 2*eP ; H = eCouv ; QTE=1
+    // 25 PATINS:  D = W + 2*eP ; F=pA ; H=pB ; QTE=IF(L>=1200,3,2)
+    // 26 TRAV FACES: D = D21 ; F=tLarg ; H=tEp ; QTE=2
+    // 27 TRAV COTES: D = H + eP + eFond ; F=tLarg ; H=tEp ; QTE=4
+    // 28 TRAV COUVERCLE: D = F24 ; F=tLarg ; H=tEp ; QTE=2
     function calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const faces_L = L + eP*2 + tEp*2;
       const faces_H = H + eFond;
 
       const panneaux = [
         {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
-        {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)},
-        // Dernier M10.xlsx : fond basé sur W (si c'est ton cas actuel)
+        {nom:"COTES", qte:2, dim: dim(W, H, eP)},
         {nom:"FOND", qte:1, dim: dim(W + eP*2, W, eFond)},
         {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)},
       ];
 
       const patinLen = W + eP*2;
-      const patins = patinsRegle(L, patinLen, pA, pB);
+      const patins = patinsRegle(L, patinLen, null, pA, pB);
 
-      const ceintures = [
-        {nom:"CEINTURE FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
-        {nom:"CEINTURE COTES", qte:4, dim: dim(H + eP + eFond, tLarg, tEp)},
-        {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
+      const renforts = [
+        {nom:"TRAVERSES FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
+        {nom:"TRAVERSES COTES", qte:4, dim: dim(H + eP + eFond, tLarg, tEp)},
+        {nom:"TRAVERSES COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
       ];
 
-      return {panneaux, patins, traverses: ceintures};
+      return {panneaux, patins, renforts, renfortsTitre:"Traverses"};
     }
 
+    // M20.xlsx (CEINTURES)
+    // 22 COTES: D=W ; F=H+eFond+pB-5 ; H=eP ; QTE=2
+    // 27 CEINTURES COTES: D = F22 + eCouv
     function calcM20(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
-  // Formules exactes de M20.xlsx (Feuil1, lignes 21-28)
+      const faces_L = L + eP*2 + tEp*2;
+      const faces_H = H + eFond;
 
-  // FACES
-  const faces_L = L + eP*2 + tEp*2;   // =D9+F13*2+F16*2
-  const faces_H = H + eFond;         // =H9+F14
+      const cotes_L = W;
+      const cotes_H = H + eFond + pB - 5;
 
-  // CÔTÉS
-  const cotes_L = W;                  // =F9
-  const cotes_H = H + eFond + pB - 5; // =H9+F14+H18-5  (H18 = patinB)
+      const panneaux = [
+        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+        {nom:"COTES", qte:2, dim: dim(cotes_L, cotes_H, eP)},
+        {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
+        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)},
+      ];
 
-  const panneaux = [
-    {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
-    {nom:"CÔTÉS", qte:2, dim: dim(cotes_L, cotes_H, eP)},
-    {nom:"FOND", qte:1, dim: dim(L, W, eFond)},                 // =D9 x F9 x F14
-    {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)} // =D9+F13*2-2  x  F9+F13*2
-  ];
+      const patinLen = W + eP*2;
+      const patins = patinsRegle(L, patinLen, null, pA, pB);
 
-  // PATINS
-  const patinLen = W + eP*2;          // =F9+F13*2
-  const patins = patinsRegle(L, patinLen, pA, pB); // garde ta règle L<700 prioritaire
+      const renforts = [
+        {nom:"CEINTURES FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},
+        {nom:"CEINTURES COTES", qte:4, dim: dim(cotes_H + eCouv, tLarg, tEp)},
+        {nom:"CEINTURES COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
+      ];
 
-  // CEINTURES
-  const ceintures = [
-    {nom:"CEINTURES FACES", qte:2, dim: dim(faces_L, tLarg, tEp)},                 // =D21 x H16 x F16
-    {nom:"CEINTURES CÔTÉS", qte:4, dim: dim(cotes_H + eCouv, tLarg, tEp)},         // =F22+F15
-    {nom:"CEINTURES COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)}             // =F24 x H17 x F17
-  ];
+      return {panneaux, patins, renforts, renfortsTitre:"Ceintures"};
+    }
 
-  return {panneaux, patins, traverses: ceintures};
-}
-
-
+    // M30.xlsx (CEINTURES)
+    // 21 FACES: D=L+2eP ; F=H+eFond ; H=eP
+    // 22 COTES: D=W ; F=H+eFond+pB-5 ; H=eP
+    // 24 COUVERCLE: D=L+2eP-2 ; F=W+2eP-2
+    // 26 CEINTURE FACES: D = F21 + (pB-5) + eCouv
+    // 27 CEINTURE COTES: D = F22 + 15
+    // 28 CEINTURE COUVERCLE: D = F24
     function calcM30(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const faces_L = L + eP*2;
       const faces_H = H + eFond;
-      const cotes_H = H + eFond + (pB - 5);
+
+      const cotes_L = W;
+      const cotes_H = H + eFond + pB - 5;
 
       const panneaux = [
         {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
-        {nom:"CÔTÉS", qte:2, dim: dim(W, cotes_H, eP)},
+        {nom:"COTES", qte:2, dim: dim(cotes_L, cotes_H, eP)},
         {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
         {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2 - 2, eCouv)},
       ];
 
       const patinLen = W + eP*2;
-      const patins = patinsRegle(L, patinLen, pA, pB);
+      const patins = patinsRegle(L, patinLen, null, pA, pB);
 
-      const ceintures = [
+      const renforts = [
         {nom:"CEINTURE FACES", qte:4, dim: dim(faces_H + (pB - 5) + eCouv, tLarg, tEp)},
-        {nom:"CEINTURE CÔTÉS", qte:4, dim: dim(cotes_H + 15, tLarg, tEp)},
+        {nom:"CEINTURE COTES", qte:4, dim: dim(cotes_H + 15, tLarg, tEp)},
         {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2 - 2, tLarg, tEp)},
       ];
 
-      return {panneaux, patins, traverses: ceintures};
+      return {panneaux, patins, renforts, renfortsTitre:"Ceintures"};
     }
 
+    // M40.xlsx (CEINTURES)
+    // 22 COTES: D=W+eFond+(pB-5) ; F=H+eFond+pB-5
+    // 26 CEINTURE FACES: D = H + eCouv + eFond + pB - 5
+    // 27 CEINTURE COTES: D = H + eFond + eCouv + pB - 5
     function calcM40(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const faces_L = L + eP*2;
       const faces_H = H + eFond;
+
       const cotes_L = W + eFond + (pB - 5);
+      const cotes_H = H + eFond + pB - 5;
 
       const panneaux = [
         {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
-        {nom:"CÔTÉS", qte:2, dim: dim(cotes_L, H, eP)},
+        {nom:"COTES", qte:2, dim: dim(cotes_L, cotes_H, eP)},
         {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
         {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2 - 2, eCouv)},
       ];
 
       const patinLen = W + eP*2;
-      const patins = patinsRegle(L, patinLen, pA, pB);
+      const patins = patinsRegle(L, patinLen, null, pA, pB);
 
-      const ceintures = [
-        {nom:"CEINTURE FACES", qte:4, dim: dim(faces_H + eCouv + (pB - 5), tLarg, tEp)},
-        {nom:"CEINTURE CÔTÉS", qte:4, dim: dim(cotes_L + eCouv, tLarg, tEp)},
+      const renforts = [
+        {nom:"CEINTURE FACES", qte:4, dim: dim(H + eCouv + eFond + pB - 5, tLarg, tEp)},
+        {nom:"CEINTURE COTES", qte:4, dim: dim(H + eFond + eCouv + pB - 5, tLarg, tEp)},
         {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2 - 2, tLarg, tEp)},
       ];
 
-      return {panneaux, patins, traverses: ceintures};
+      return {panneaux, patins, renforts, renfortsTitre:"Ceintures"};
     }
 
+    // M50.xlsx (CEINTURES)
+    // 26 CEINTURE FACES: D = L + 2eP + 2tEp
+    // 27 CEINTURE COTES: D = W + 2eP
+    function calcM50(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
+      const faces_L = L + eP*2;
+      const faces_H = H + eFond;
+
+      const cotes_L = W;
+      const cotes_H = H + eFond + pB - 5;
+
+      const panneaux = [
+        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+        {nom:"COTES", qte:2, dim: dim(cotes_L, cotes_H, eP)},
+        {nom:"FOND", qte:1, dim: dim(L, W, eFond)},
+        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2, eCouv)},
+      ];
+
+      const patinLen = W + eP*2;
+      const patins = patinsRegle(L, patinLen, null, pA, pB);
+
+      const renforts = [
+        {nom:"CEINTURE FACES", qte:4, dim: dim(L + eP*2 + tEp*2, tLarg, tEp)},
+        {nom:"CEINTURE COTES", qte:4, dim: dim(W + eP*2, tLarg, tEp)},
+        {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2, tLarg, tEp)},
+      ];
+
+      return {panneaux, patins, renforts, renfortsTitre:"Ceintures"};
+    }
+
+    // M60.xlsx (CEINTURES) — patins section par défaut 70x18 dans ton Excel
+    // 21 FACES: D=L+2eP ; F=H
+    // 23 FOND:  (L+2eP) x (W+2eP)
+    // 26 CEINTURE FACES: D = pA + tEp ; F = H + eCouv + eFond + pB ; H = tEp
+    // 27 CEINTURE COTES: D = pA ; F = F26 ; H = tEp
+    // 28 CEINTURE COUVERCLE: D = W + 2eP ; F = pA ; H = tEp
     function calcM60(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
       const faces_L = L + eP*2;
       const faces_H = H;
+
       const fond_L = L + eP*2;
       const fond_W = W + eP*2;
 
       const panneaux = [
         {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
-        {nom:"CÔTÉS", qte:2, dim: dim(W, H, eP)},
+        {nom:"COTES", qte:2, dim: dim(W, H, eP)},
         {nom:"FOND", qte:1, dim: dim(fond_L, fond_W, eFond)},
         {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2 - 2, W + eP*2 - 2, eCouv)},
       ];
 
-      const patinLen = fond_W;
-      const patins = patinsRegle(L, patinLen, pA, pB);
+      const patinLen = W + eP*2;
+      const patins = patinsRegle(L, patinLen, null, pA, pB);
 
-      const ceintures = [
-        {nom:"CEINTURE FACES", qte:4, dim: dim(faces_H + eFond + pB + eCouv, pA + tEp, tEp)},
-        {nom:"CEINTURE CÔTÉS", qte:4, dim: dim(faces_H + eFond + pB + eCouv, pA, tEp)},
-        {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2 - 2, pA, tEp)},
+      const ceintH = H + eCouv + eFond + pB;
+
+      const renforts = [
+        {nom:"CEINTURE FACES", qte:4, dim: dim(pA + tEp, ceintH, tEp)},
+        {nom:"CEINTURE COTES", qte:4, dim: dim(pA, ceintH, tEp)},
+        {nom:"CEINTURE COUVERCLE", qte:2, dim: dim(W + eP*2, pA, tEp)},
       ];
 
-      return {panneaux, patins, traverses: ceintures};
+      return {panneaux, patins, renforts, renfortsTitre:"Ceintures"};
     }
 
-    // ====== CALCUL PRINCIPAL ======
+    // M70.xlsx (pas de ceintures dans l’Excel)
+    // 24 COUVERCLE: D = L+2eP ; F = W+2eP
+    function calcM70(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB){
+      const faces_L = L + eP*2;
+      const faces_H = H;
+
+      const fond_L = L + eP*2;
+      const fond_W = W + eP*2;
+
+      const panneaux = [
+        {nom:"FACES", qte:2, dim: dim(faces_L, faces_H, eP)},
+        {nom:"COTES", qte:2, dim: dim(W, H, eP)},
+        {nom:"FOND", qte:1, dim: dim(fond_L, fond_W, eFond)},
+        {nom:"COUVERCLE", qte:1, dim: dim(L + eP*2, W + eP*2, eCouv)},
+      ];
+
+      const patinLen = W + eP*2;
+      const patins = patinsRegle(L, patinLen, null, pA, pB);
+
+      return {panneaux, patins, renforts:[], renfortsTitre:""};
+    }
+
     function calculer(){
       clearMsg();
 
@@ -303,30 +380,40 @@
       const tEp = n("tEp") || 18;
       const tLarg = n("tLarg") || 100;
 
-      let pA = n("pA") || 95;
-      let pB = n("pB") || 95;
+      let pA = n("pA");
+      let pB = n("pB");
 
-      // M60 par défaut 70x18 si champ vide
-      if(ref === "M60"){
-        if(!n("pA")) pA = 70;
-        if(!n("pB")) pB = 18;
+      // Défauts patins pour M60/M70 comme tes Excel (70 x 18) si l'utilisateur n'a rien changé
+      if((ref === "M60" || ref === "M70") && (!pA || !pB)){
+        if(!pA) pA = 70;
+        if(!pB) pB = 18;
       }
+      if(!pA) pA = 95;
+      if(!pB) pB = 95;
 
       let result = null;
       if(ref === "M10") result = calcM10(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
       else if(ref === "M20") result = calcM20(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
       else if(ref === "M30") result = calcM30(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
       else if(ref === "M40") result = calcM40(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
+      else if(ref === "M50") result = calcM50(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
       else if(ref === "M60") result = calcM60(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
-      else { showError("Ce modèle n'a pas encore ses calculs."); return; }
+      else if(ref === "M70") result = calcM70(L,W,H,eP,eFond,eCouv,tEp,tLarg,pA,pB);
+      else {
+        showError("Calcul non disponible pour ce modèle.");
+        return;
+      }
 
       lastResult = {ref,L,W,H, ...result};
 
-      outBox.innerHTML =
-        `<div class="hint" style="margin-top:10px;"><b>${ref}</b> — Dimensions intérieures : ${L} x ${W} x ${H} mm</div>` +
-        tableHTML("Panneaux", result.panneaux) +
-        tableHTML("Patins", result.patins) +
-        tableHTML("Ceintures / Traverses", result.traverses);
+      const parts = [];
+      parts.push(`<div class="hint" style="margin-top:10px;"><b>${ref}</b> — Dimensions intérieures : ${L} x ${W} x ${H} mm</div>`);
+      parts.push(tableHTML("Panneaux", result.panneaux));
+      parts.push(tableHTML("Patins", result.patins));
+      if(result.renforts && result.renforts.length){
+        parts.push(tableHTML(result.renfortsTitre || "Renforts", result.renforts));
+      }
+      outBox.innerHTML = parts.join("");
     }
 
     // ====== PDF (images non étirées) ======
@@ -375,11 +462,9 @@
       // Logo PDF (optionnel)
       try{
         const logo = await fetchAsDataURL("secm_logo.png");
-        // si ton logo est JPG, change "PNG" -> "JPEG"
         doc.addImage(logo, "PNG", margin, y, 35, 14);
       }catch(e){}
 
-      // Titre
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
       doc.text(`Fiche de débit - Référence : ${lastResult.ref}`, 50, y+8);
@@ -416,18 +501,19 @@
 
       addSection("Panneaux", lastResult.panneaux);
       addSection("Patins", lastResult.patins);
-      addSection("Ceintures / Traverses", lastResult.traverses);
+      if(lastResult.renforts && lastResult.renforts.length){
+        addSection(lastResult.renfortsTitre || "Renforts", lastResult.renforts);
+      }
 
-      // Image modèle en bas (ratio conservé + centrée, jamais étirée)
+      // Image modèle en bas (ratio conservé + centrée)
       try{
         const imgData = await fetchAsDataURL(`${lastResult.ref}.jpg`);
         const size = await getImageSize(imgData);
 
         const maxW = pageW - margin*2;
-        let maxH = 55; // zone image cible
+        let maxH = 55;
         let imgY = pageH - margin - maxH;
 
-        // Si les tableaux descendent trop, on réduit maxH pour rester sur une seule page
         if (y + 5 > imgY){
           maxH = Math.max(25, pageH - margin - y - 5);
           imgY = pageH - margin - maxH;
@@ -443,7 +529,6 @@
         }
 
         const imgX = (pageW - drawW) / 2;
-
         doc.addImage(imgData, "JPEG", imgX, imgY, drawW, drawH);
       }catch(e){}
 
